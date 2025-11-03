@@ -1,0 +1,9 @@
+scale name,column name,reverse,min,max,transform,sum,mean
+PHQ-8,PHQ-8_1,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_2,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_3,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_4,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_5,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_6,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_7,0,0,3,0,sum,mean
+PHQ-8,PHQ-8_8,0,0,3,0,sum,mean

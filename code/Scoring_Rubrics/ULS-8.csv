@@ -1,0 +1,9 @@
+scale name,column name,reverse,min,max,transform,sum,mean
+ULS-8,ULS-8_1,0,0,3,0,sum,mean
+ULS-8,ULS-8_2,0,0,3,0,sum,mean
+ULS-8,ULS-8_3,1,0,3,0,sum,mean
+ULS-8,ULS-8_4,0,0,3,0,sum,mean
+ULS-8,ULS-8_5,0,0,3,0,sum,mean
+ULS-8,ULS-8_6,1,0,3,0,sum,mean
+ULS-8,ULS-8_7,0,0,3,0,sum,mean
+ULS-8,ULS-8_8,0,0,3,0,sum,mean

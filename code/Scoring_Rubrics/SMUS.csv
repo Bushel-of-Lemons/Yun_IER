@@ -1,0 +1,18 @@
+scale name,column name,reverse,min,max,transform,sum,mean,Image_Based,Comparison_Based,Belief_Based,Consumption_Based
+SMUS,SMUS_1,0,1,9,0,sum,mean,mean,,,
+SMUS,SMUS_2,0,1,9,0,sum,mean,mean,,,
+SMUS,SMUS_3,0,1,9,0,sum,mean,mean,,,
+SMUS,SMUS_4,0,1,9,0,sum,mean,mean,,,
+SMUS,SMUS_5,0,1,9,0,sum,mean,mean,,,
+SMUS,SMUS_6,0,1,9,0,sum,mean,,mean,,
+SMUS,SMUS_7,0,1,9,0,sum,mean,,mean,,
+SMUS,SMUS_8,0,1,9,0,sum,mean,,mean,,
+SMUS,SMUS_9,0,1,9,0,sum,mean,,,mean,
+SMUS,SMUS_10,0,1,9,0,sum,mean,,,mean,
+SMUS,SMUS_11,0,1,9,0,sum,mean,,,mean,
+SMUS,SMUS_12,0,1,9,0,sum,mean,,,mean,
+SMUS,SMUS_13,0,1,9,0,sum,mean,,,,mean
+SMUS,SMUS_14,0,1,9,0,sum,mean,,,,mean
+SMUS,SMUS_15,0,1,9,0,sum,mean,,,,mean
+SMUS,SMUS_16,0,1,9,0,sum,mean,,,,mean
+SMUS,SMUS_17,0,1,9,0,sum,mean,,,,mean

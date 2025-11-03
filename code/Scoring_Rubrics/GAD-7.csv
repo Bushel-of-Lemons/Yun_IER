@@ -1,0 +1,8 @@
+scale name,column name,reverse,min,max,transform,sum,mean
+GAD-7,GAD-7_1,0,0,3,0,sum,mean
+GAD-7,GAD-7_2,0,0,3,0,sum,mean
+GAD-7,GAD-7_3,0,0,3,0,sum,mean
+GAD-7,GAD-7_4,0,0,3,0,sum,mean
+GAD-7,GAD-7_5,0,0,3,0,sum,mean
+GAD-7,GAD-7_6,0,0,3,0,sum,mean
+GAD-7,GAD-7_7,0,0,3,0,sum,mean
