@@ -1,0 +1,118 @@
+---
+title: "Social-Support Scoring Script"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	cache = FALSE
+)
+options(scipen=999)
+```
+
+# specify data path
+```{r}
+data_dir="/Users/sm9518/Desktop/Yun_IER/data"
+```
+
+# load packages
+```{r}
+if(!require('pacman')) {
+	install.packages('pacman')
+}
+
+pacman::p_load(tidyverse, devtools, lmerTest, furrr,DT, ggdist,specr, brms,knitr,here, ggwordcloud, kableExtra, chron, install = TRUE)
+
+#devtools::install_github("dcosme/specr", ref = "plotmods")
+
+if (!require(scorequaltrics)) {
+  devtools::install_github('dcosme/qualtrics', ref = "dev/enhance")
+}
+
+palette = c("#772e25", "#c44536", "#ee9b00", "#197278", "#283d3b", "#9CC5A1", "#ADA7C9", "#BB7A5E", "#6195C6", "#4D4861", "#B0B2B8")
+palette_type = c("#c44536", "#ee9b00", "#197278")
+palette_sentiment = c(palette[2], palette[4])
+plot_aes = theme_minimal() +
+  theme(legend.position = "top",
+        legend.text = element_text(size = 8),
+        text = element_text(size = 12, family = "Futura Medium"),
+        axis.text = element_text(color = "black"),
+        axis.ticks.y = element_blank())
+
+```
+
+# pull qualtrics data {.tabset}
+
+## define variables and paths
+
+To pull data from Qualtrics, you need a credentials file with an API token associated with your account. To create the file, follow these steps.
+
+1. Generate an API token for Qualtrics. Follow the steps outlined [here](https://www.qualtrics.com/support/integrations/api-integration/overview/).
+
+2. Save a Qualtrics credentials text file with the following format. In this example, the file is being saved as `~/credentials.yaml.PENN`. The `baseurl` is the URL for your institution on Qualtrics. Use `upenn.co1.qualtrics.com` for Penn Qualtrics of whatever your url is.
+
+```
+token: oILNW6...[your qualtrics API token]
+baseurl: princetonsurvey.pdx1.qualtrics.com (for princeton)
+```
+
+`cred_file_location` = path to your Qualtrics credential file. 
+
+`survey_name_filter` = regular expression to filter the available surveys
+
+```{r}
+keep_columns = '(ResponseId|PROLIFIC_PID|order|Finished|Progress|no_consent|failed|DistributionChannel|Date)' # info that we want to hang on to
+cred_file_location = "/Users/sm9518/Desktop/qualtrics_credentials.yaml"
+survey_name_filter = "LBA-Race*" # we want to filter just our surveys
+ignore_items = "IPAddress|RecipientFirstName|RecipientLastName|RecipientEmail|ExternalReference|LocationLatitude|LocationLongitude" # ignore a bunch of metadata fields 
+```
+
+## fetch qualtrics data
+The Qualtrics API is pretty finicky. If you get the following error, just rerun the `get_survey_data` command until it works:
+
+```
+Error in qualtrics_response_codes(f, raw = TRUE) : 
+  Qualtrics API complains that the requested resource cannot be found (404 error).
+Please check if you are using the correct survey ID.
+```
+
+```{r}
+# once done, uncomment all of this to save as RDS for faster loading next time
+
+#if (!file.exists(file.path(data_dir, "data_raw/survey_data_study1.RDS"))) {
+  # load credential file
+  credentials = scorequaltrics::creds_from_file(cred_file_location)
+  
+  # filter
+  surveysAvail = scorequaltrics::get_surveys()
+  surveysFiltered = filter(surveysAvail, grepl(survey_name_filter, name))
+  DT::datatable(arrange(select(surveysFiltered, name), name))
+  
+  # fetch data
+  surveys_long = scorequaltrics::get_survey_data(surveysFiltered,
+                                               credentials,
+                                               pid_col = keep_columns) %>%
+    filter(!grepl(ignore_items, item)) #filter out identifiable data
+
+  #saveRDS(surveys_long, file.path(data_dir, "data_raw/survey_data_study1.RDS"))
+#} else {
+ # surveys_long = readRDS(file.path(data_dir, "data_raw/survey_data_study1.RDS"))
+#}
+```
