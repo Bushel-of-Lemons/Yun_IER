@@ -1,6 +1,6 @@
 ---
 title: "Social-Support Scoring Script"
-author: ""
+author: "Steven and Emi"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -29,7 +29,7 @@ options(scipen=999)
 
 # specify data path
 ```{r}
-data_dir="/Users/sm9518/Desktop/Yun_IER/data"
+data_dir="/Users/sm9518/Library/CloudStorage/GoogleDrive-sm9518@princeton.edu/Shared drives/LEmoLab/LEmoLab/Projects_Active/Yun_IER/data"
 ```
 
 # load packages
@@ -38,7 +38,7 @@ if(!require('pacman')) {
 	install.packages('pacman')
 }
 
-pacman::p_load(tidyverse, devtools, lmerTest, furrr,DT, ggdist,specr, brms,knitr,here, ggwordcloud, kableExtra, chron, install = TRUE)
+pacman::p_load(tidyverse, devtools, furrr,DT, ggdist,specr,knitr,here, kableExtra, chron, install = TRUE)
 
 #devtools::install_github("dcosme/specr", ref = "plotmods")
 
@@ -80,7 +80,7 @@ baseurl: princetonsurvey.pdx1.qualtrics.com (for princeton)
 ```{r}
 keep_columns = '(ResponseId|PROLIFIC_PID|order|Finished|Progress|no_consent|failed|DistributionChannel|Date)' # info that we want to hang on to
 cred_file_location = "/Users/sm9518/Desktop/qualtrics_credentials.yaml"
-survey_name_filter = "LBA-Race*" # we want to filter just our surveys
+survey_name_filter = "GenderIER1*" # we want to filter just our surveys
 ignore_items = "IPAddress|RecipientFirstName|RecipientLastName|RecipientEmail|ExternalReference|LocationLatitude|LocationLongitude" # ignore a bunch of metadata fields 
 ```
 
@@ -116,3 +116,547 @@ Please check if you are using the correct survey ID.
  # surveys_long = readRDS(file.path(data_dir, "data_raw/survey_data_study1.RDS"))
 #}
 ```
+
+
+```{r tidy qualtrics data}
+# optouts 
+optouts = surveys_long %>%
+  filter(no_consent == 1)
+cat("Number of opt-outs:", nrow(unique(optouts["PROLIFIC_PID"])), "\n")
+
+### failed_attentions### faunique()iled_attentions
+failed_attentions = surveys_long %>%
+  filter(failed_attention_1 == 1 & failed_attention_2 == 1)
+
+cat("Number of failed attentions:", nrow(unique(failed_attentions["PROLIFIC_PID"])), "\n")
+
+### failed screeners 
+
+failed_screeners = surveys_long %>%
+  filter(failed_screener == 1)
+cat("Number of failed screeners:", nrow(unique(failed_screeners["PROLIFIC_PID"])), "\n")
+
+
+# now tidy the survey data 
+
+surveys_tidy = surveys_long %>%
+  filter(!is.na(ResponseId)) %>% # remove test responses
+  #filter(nchar(PROLIFIC_PID) > 1) %>% # remove test responses
+  filter(!grepl("_DO_", item)) %>% # item orders (the orders in which they are presented when randomized)
+  filter(!DistributionChannel == "Preview") %>% # remove incomplete responses
+  #filter(!PROLIFIC_PID %in% optouts$PROLIFIC_PID) %>% #remove opt-out responses ### Make sure to replace with prolific id once launched
+  #filter(!PROLIFIC_PID %in% failed_screeners$PROLIFIC_PID) %>% #remove failed screener responses 
+  #filter(!PROLIFIC_PID %in% failed_attentions$PROLIFIC_PID) %>% #remove failed attention responses
+  filter(!grepl("time", item)) %>% # timers
+  filter(!grepl("UserLanguage|Status", item)) %>%
+  filter(Progress >80) %>% #retain people who got most of the way through
+  select(-DistributionChannel) %>%
+extract(survey_name, c("survey_name"), "GenderIER1-(.*)") |> 
+  filter(StartDate > "2026-01-20") 
+
+#### ADD this back to assign the different labels
+#mutate(study = case_when(
+#  StartDate >= "2025-10-09" & StartDate < "2026-01-06" ~ "pilot",  # Pilot PRE + Followup
+ # StartDate >= "2026-01-06" ~ "main",  # Main study starts Jan 6+
+#  TRUE ~ NA_character_
+#))  
+  #mutate(study = ifelse(grepl("2023-07", StartDate), "full", study)) %>% # use this to exclude dates
+  #filter(!(order == "A" & survey_name == "daily experimental 5" & grepl("07-22|07-23", RecordedDate))) # remove incorrectly pushed surveys
+
+
+ids = surveys_tidy %>%
+  #select(PROLIFIC_PID) %>% # add back prolific id when running the REAL pipeline
+  select(ResponseId) |> 
+  unique() %>%
+  mutate(pID = sprintf("IER%03d", row_number())) %>%
+  #left_join(., unique(select(surveys_tidy, PROLIFIC_PID))) # add back prolific id
+  left_join(., unique(select(surveys_tidy, ResponseId))) # add back prolific id
+
+surveys_enrolled = surveys_tidy %>% # create dataset of ppts who are enrolled in the survey
+  left_join(., ids) %>%
+  filter(is.na(failed_attention_1)&is.na(failed_attention_2)) # create screener
+
+
+data = surveys_tidy %>%
+  left_join(., ids) 
+
+data_surveys_all = data %>%
+  filter(Finished == 1) %>%
+  filter(!is.na(value))
+
+id_key = data_surveys_all %>%
+  #select(PROLIFIC_PID, pID, ResponseId) %>% # add back once on prolific
+  select((ResponseId), pID) %>% # remove once we are on prolific
+  unique()
+
+data_surveys = data_surveys_all %>%
+  filter(!grepl("^age$|sex_at_birth|race|ses_|state|gender|gender_iden_other|transgender|hispan_latin|household_|white_|black_|asian_|pacific_|finac_|sexuality_|consent|Duration|screen|attention|_title|_text|_Open_|OE_|education|_pronouns|_partner", item)) %>%
+  select(pID,survey_name, item, value) %>%
+  arrange(pID)
+
+data_demo = data %>% # use data here not data surveys all 
+  filter(grepl("^age$|sex_at_birth|race|ses_|state|gender|gender_iden_other|transgender|hispanic|household_|white_|black_|asian_|pacific_|finac_|sexuality_|education", item)) %>%
+  select(pID, survey_name, item, value) %>%
+  arrange(pID)
+
+data_text = data_surveys_all %>%
+  filter(grepl("Condition|support_response", item)) %>%
+  select(pID,survey_name, item, value) %>%
+  pivot_wider(names_from = item,
+              values_from = value) |>  
+  select(pID, survey_name, Condition, starts_with("support_")) %>%
+  arrange(pID)
+
+#write_csv(Followup_ids, file.path("/Users/sm9518/Downloads/LBA_participant_ids.csv"))
+```
+
+## score data
+
+```{r scoring data}
+### remove all the superfluous columns from data_surveys before scoring 
+
+data_surveys_cleaned = data_surveys %>%
+  filter(!grepl("support_response|Condition", item))
+
+
+rubric_dir = here::here("code/Scoring_Rubrics")
+scoring_rubrics = data.frame(file = dir(file.path(rubric_dir),  #load in the scoring rubrics
+                                        pattern = '*.csv',
+                                        full.names = TRUE))
+# read in rubrics
+scoring_data_long = scorequaltrics::get_rubrics(scoring_rubrics, type = 'scoring')
+
+# score 
+# Note we MUST remove all superfluous columns from the data_surveys dataframe before scoring (e.g., text columns)
+scored <- scorequaltrics::score_questionnaire(
+  data_surveys_cleaned,
+  scoring_data_long,
+  SID = "pID",
+  psych = FALSE
+) %>%
+  rename(pID = SID) |> 
+  mutate(
+    score = as.numeric(score),
+    measure = sprintf("%s %s", scale_name, scored_scale),
+    type = case_when(
+      grepl("PHQ|GAD|ULS", scale_name) ~ "mental health",
+      TRUE ~ "well-being"
+    )
+  ) %>%
+  group_by(measure)
+scored
+```
+
+# tidy the text data
+
+## social support
+
+> Note. One person was acquiescent in responding ot the open-ended questions. 
+
+```{r}
+# make the text data long format so we can run this through programs easier
+data_text_long <- data_text %>%
+  group_by(pID, Condition) 
+ 
+DT::datatable(data_text_long, 
+              options = list(pageLength = 10)) %>%
+  DT::formatStyle(columns = colnames(data_text_long), 
+                  `white-space` = 'normal')
+
+#write_csv(data_text_long, file.path(data_dir, "LBA_open_ended_responses.csv"))
+```
+
+# durations {.tabset}
+
+## all
+```{r, fig.width=8, fig.height=7}
+# Prepare data once
+duration_data <- surveys_enrolled %>%
+  pivot_wider(names_from = item, values_from = value) %>%
+  rename("duration" = "Duration (in seconds)") %>%
+  select(survey_name, pID, duration, Progress) %>%
+  unique() %>%
+  #extract(survey_name, "type", "(PRE|Followup)") %>%
+  #filter(!(study == "main" & type == "Followup")) %>%  # Remove followup from main but make sure to add back
+  mutate(
+    duration = as.numeric(duration) / 60,
+    Progress = ifelse(Progress == 100, "complete", "incomplete")
+  )
+
+## Calculate medians
+durations_summary <- duration_data %>%
+  summarize(median = median(duration, na.rm = TRUE)) |> 
+  mutate(median = round(median, 3))
+
+# Raincloud plot without study or type
+duration_data %>%
+  filter(duration < 120) %>%
+  ggplot(aes(x = duration, y = 1, fill = "Duration")) + # Use a constant y value
+  ggridges::geom_density_ridges(color = NA) +
+  geom_label(data = durations_summary, aes(y = 1, x = median, label = sprintf("Med = %s", median)), fill = "white") +
+  labs(x = "Completion Time (mins)", y = NULL) +
+  scale_fill_manual(values = palette) +
+  plot_aes +
+  theme(legend.position = "none",
+        axis.text.y = element_blank(), # Remove y-axis labels
+        axis.ticks.y = element_blank()) # Remove y-axis ticks
+
+```
+
+```{r}
+# Calculate outliers without grouping by type
+outliers <- duration_data %>%
+  mutate(
+    Progress = ifelse(Progress == 100, "complete", "incomplete"),
+    mean_duration = mean(duration, na.rm = TRUE),
+    sd_duration = sd(duration, na.rm = TRUE),
+    lower_threshold = mean_duration - 1.5 * sd_duration,
+    upper_threshold = mean_duration + 1.5 * sd_duration,
+    is_outlier = duration < lower_threshold | duration > upper_threshold
+  ) %>%
+  filter(is_outlier) %>%
+  select(pID, duration, mean_duration, sd_duration, lower_threshold, upper_threshold) %>%
+  arrange(duration)
+
+# Get unique outlier pIDs
+outlier_pIDs <- unique(outliers$pID)
+
+# Summary
+summary <- outliers %>%
+  summarize(
+    n_outliers = n(),
+    n_unique_pIDs = n_distinct(pID),
+    mean_duration = first(mean_duration),
+    sd_duration = first(sd_duration)
+  )
+
+print(summary)
+print(outliers)
+
+cat("\nUnique outlier pIDs:\n")
+print(outlier_pIDs)
+```
+
+## no outliers
+
+```{r, fig.width=8, fig.height=7}
+
+library(ggdist)
+
+# Prepare data with outlier filtering (no type or study)
+duration_data <- surveys_enrolled %>%
+  pivot_wider(names_from = item, values_from = value) %>%
+  rename("duration" = "Duration (in seconds)") %>%
+  select(survey_name, pID, duration, Progress) %>%
+  unique() %>%
+  mutate(
+    duration = as.numeric(duration) / 60,
+    Progress = ifelse(Progress == 100, "complete", "incomplete")
+  ) %>%
+  filter(duration < 60)
+
+# Calculate median
+durations_summary <- duration_data %>%
+  summarize(median = median(duration, na.rm = TRUE))
+
+# Raincloud plot (no type or study)
+duration_data %>%
+  ggplot(aes(x = duration, y = 1, fill = "Duration")) + # Use constant y-value
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0, justification = -0.2, point_colour = NA) +
+  geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.5) +
+  geom_point(size = 1.3, alpha = 0.3, position = position_jitter(seed = 1, width = 0.1)) +
+  geom_label(data = durations_summary, aes(y = 1, x = median, label = sprintf("Med = %1.1f", median)), fill = "white") +
+  scale_fill_manual(values = palette) +
+  labs(x = "duration (mins)", y = NULL) +
+  plot_aes +
+  theme(legend.position = "none",
+        axis.text.y = element_blank(), # Remove y-axis labels
+        axis.ticks.y = element_blank()) # Remove y-axis ticks
+```
+
+# demographics {.tabset}
+
+## Age Distribution
+
+```{r}
+
+age_data <- data_demo %>%
+  pivot_wider(names_from = item, values_from = value) %>%
+  dplyr::select(survey_name, pID, age) %>%
+  unique() |> 
+  dplyr::mutate(age = as.numeric(as.character(age))) %>%  # Convert list -> character -> numeric
+  summarize(median_age = median(age, na.rm = TRUE))
+
+data_demo |> 
+  filter(item == "age") |> 
+  mutate(age = as.numeric(value)) |> 
+  ggplot(aes(x = age)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0, justification = -0.2, point_colour = NA, fill = palette[5]) +
+  geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.5,fill = palette[5]) +
+  geom_label(data = age_data, aes(x = median_age, y = 0, label = sprintf("Med = %1.1f", median_age)), fill = "white") +
+  labs(x = "Age", y = "Count") +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+## Sex 
+
+```{r fig.height=8, fig.width=8}
+data_demo |> 
+  filter(item == "gender") |>
+  mutate(value = case_when(
+    value == "1" ~ "Male",
+    value == "2" ~ "Female",
+    value == "3" ~ "Other",
+    value == "4" ~ "Prefer not to say",
+    TRUE ~ value
+  )) |>
+  count(value) |>
+  mutate(
+    pct = n / sum(n) * 100,
+    label = sprintf("%d\n(%.1f%%)", n, pct)
+  ) |>
+  ggplot(aes(x = value, y = pct, fill = value)) +
+  scale_fill_manual(values = palette) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), vjust = -0.5) +
+  labs(x = "Sex at Birth", y = "Percent of Sample") +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+## Race Granular
+
+```{r fig.height=8, fig.width=10}
+data_demo |>
+  filter(str_detect(item, "^race_ethnicity_\\d+$")) |>
+  filter(value == "1") |>  # only keep checked boxes
+  mutate(race = case_when(
+    item == "race_ethnicity_1" ~ "American Indian or Alaska Native",
+    item == "race_ethnicity_2" ~ "Black or African American",
+    item == "race_ethnicity_3" ~ "East Asian",
+    item == "race_ethnicity_4" ~ "Pacific Islander or Hawaiian Native",
+    item == "race_ethnicity_5" ~ "South Asian",
+    item == "race_ethnicity_6" ~ "Southeast Asian",
+    item == "race_ethnicity_7" ~ "White",
+    item == "race_ethnicity_8" ~ "North African/Middle Eastern",
+    item == "race_ethnicity_9" ~ "Prefer not to say",
+    item == "race_ethnicity_10" ~ "Not Listed",
+    item == "race_ethnicity_11" ~ "Hispanic/Latino",
+    TRUE ~ item
+  )) |>
+  count(race) |>
+  mutate(
+    pct = n / n_distinct(data_demo$pID) * 100,  # percent of total participants
+    label = sprintf("%d\n(%.1f%%)", n, pct)
+  ) |>
+  ggplot(aes(x = reorder(race, -pct), y = pct, fill = race)) +
+  scale_fill_manual(values = palette) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), vjust = -0.5, size = 3) +
+  labs(x = "Race/Ethnicity", y = "Percent of Sample") +
+  plot_aes +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+  
+```
+
+## Race as a Monolith
+
+```{r fig.height=10, fig.width=8}
+multiracial_data <- data_demo |>
+  filter(str_detect(item, "^race_ethnicity_\\d+$")) |>
+  filter(value == "1") |>
+  group_by(pID) |>
+  summarize(n_races = n()) |>
+  summarize(
+    n_multiracial = sum(n_races > 1),
+    pct_multiracial = (n_multiracial / n_distinct(data_demo$pID)) * 100,
+    total_participants = n_distinct(data_demo$pID)
+  )
+
+# Create the bar plot
+race_barplot <- data_demo |>
+  filter(str_detect(item, "^race_ethnicity_\\d+$")) |>
+  filter(value == "1") |>
+  mutate(race_collapsed = case_when(
+    item %in% c("race_ethnicity_3", "race_ethnicity_5", "race_ethnicity_6") ~ "Asian",
+    item == "race_ethnicity_7" ~ "White",
+    item == "race_ethnicity_2" ~ "Black",
+    item == "race_ethnicity_11" ~ "Latino/Hispanic",
+    item == "race_ethnicity_1" ~ "American Indian or Alaska Native",
+    item == "race_ethnicity_4" ~ "Pacific Islander or Hawaiian Native",
+    item == "race_ethnicity_8" ~ "North African/Middle Eastern",
+    item == "race_ethnicity_9" ~ "Prefer not to say",
+    item == "race_ethnicity_10" ~ "Other",
+    TRUE ~ item
+  )) |>
+  count(race_collapsed) |>
+  mutate(
+    pct = n / n_distinct(data_demo$pID) * 100,
+    label = sprintf("%d\n(%.1f%%)", n, pct)
+  ) |>
+  ggplot(aes(x = reorder(race_collapsed, -pct), y = pct, fill = race_collapsed)) +
+  scale_fill_manual(values = palette) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = label), vjust = -0.5, size = 3) +
+  labs(
+    x = "Race/Ethnicity", 
+    y = "Percent of Sample",
+    caption = sprintf("Note: %.1f%% of participants identified as multiracial", 
+                      multiracial_data$pct_multiracial)) +
+  plot_aes +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+race_barplot
+```
+
+
+
+# outcome distributions {.tabset}
+
+```{r, fig.width=10, fig.height=5}
+combined_data <- scored %>%
+  filter(grepl("PHQ-8 sum|GAD-7 sum|ULS-8 sum", measure)) %>%
+  mutate(measure_label = case_when(
+    grepl("PHQ-8 sum", measure) ~ "Depression (PHQ-8)",
+    grepl("GAD-7 sum", measure) ~ "Anxiety (GAD-7)",
+    grepl("ULS-8 sum", measure) ~ "Loneliness (ULS-8)",
+  ))
+
+# Calculate medians for each measure
+median_data <- combined_data %>%
+  group_by(measure_label) %>%
+  summarize(median_score = median(score, na.rm = TRUE))
+
+# Create faceted plot
+combined_data %>%
+  ggplot(aes(x = score, fill = measure_label)) +
+  stat_halfeye(adjust = 0.5, width = 0.6, .width = 0, justification = -0.2, point_colour = NA) +
+  geom_boxplot(aes(fill = measure_label), width = 0.15, outlier.shape = NA, alpha = 0.5) +
+  geom_label(data = median_data, aes(x = median_score, y = 0, label = sprintf("Med = %1.1f", median_score)), fill = "white",alpha = 0.2) +
+  facet_wrap(~measure_label, scales = "free_x") +
+  scale_fill_manual(values = palette[c(1:6)]) +
+  labs(x = "Score", y = "Density") +
+  plot_aes +
+  theme(legend.position = "none")
+```
+
+# Saving data to use 
+
+```{r}
+# Rescore demographic data 
+sex_scored <- data_demo %>%
+  filter(item == "gender") %>%
+  mutate(sex_at_birth = case_when(
+    value == "1" ~ "Male",
+    value == "2" ~ "Woman",
+    value == "3" ~ "Non-binary",
+    value == "4" ~ "Genderqueer",
+    value == "5" ~ "Agender",
+    value == "6" ~ "Gender fluid",
+    value == "7" ~ "Prefer not to say",
+    value == "8" ~ "My gender identity is not listed here",
+    TRUE ~ value
+  )) %>%
+  select(pID, sex_at_birth)
+
+# Process race/ethnicity - keep first selected race
+race_scored <- data_demo %>%
+  filter(str_detect(item, "^race_ethnicity_\\d+$")) %>%
+  filter(value == "1") %>%
+  mutate(race_ethnicity = case_when(
+    item %in% c("race_ethnicity_3", "race_ethnicity_5", "race_ethnicity_6") ~ "Asian",
+    item == "race_ethnicity_7" ~ "White",
+    item == "race_ethnicity_2" ~ "Black",
+    item == "race_ethnicity_11" ~ "Latino/Hispanic",
+    item == "race_ethnicity_1" ~ "American Indian or Alaska Native",
+    item == "race_ethnicity_4" ~ "Pacific Islander or Hawaiian Native",
+    item == "race_ethnicity_8" ~ "North African/Middle Eastern",
+    item == "race_ethnicity_9" ~ "Prefer not to say",
+    item == "race_ethnicity_10" ~ "Other",
+    TRUE ~ item
+  )) %>%
+  group_by(pID) %>%
+  slice(1) %>%  # Take first race if multiple selected
+  ungroup() %>%
+  select(pID, race_ethnicity)
+
+# Race multiracial scoring
+race_multi_scored <- data_demo %>%
+  filter(str_detect(item, "^race_ethnicity_\\d+$")) %>%
+  filter(value == "1") %>%
+  mutate(race_category = case_when(
+    item %in% c("race_ethnicity_3", "race_ethnicity_5", "race_ethnicity_6") ~ "Asian",
+    item == "race_ethnicity_7" ~ "White",
+    item == "race_ethnicity_2" ~ "Black",
+    item == "race_ethnicity_11" ~ "Latino/Hispanic",
+    item == "race_ethnicity_1" ~ "American Indian or Alaska Native",
+    item == "race_ethnicity_4" ~ "Pacific Islander or Hawaiian Native",
+    item == "race_ethnicity_8" ~ "North African/Middle Eastern",
+    item == "race_ethnicity_9" ~ "Prefer not to say",
+    item == "race_ethnicity_10" ~ "Other",
+    TRUE ~ item
+  )) %>%
+  group_by(pID) %>%
+  summarise(
+    races = list(race_category),
+    n_races = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    race_collapsed = map_chr(races, function(race_list) {
+      # Get unique races (handles duplicates like "Asian", "Asian")
+      unique_races <- unique(race_list)
+      n_unique <- length(unique_races)
+      
+      if (n_unique == 1) {
+        # Only one unique race (even if selected multiple times)
+        unique_races[1]
+      } else if (n_unique == 2 && "White" %in% unique_races) {
+        # Two unique races, one is White - return the non-White one
+        non_white <- setdiff(unique_races, "White")
+        non_white[1]
+      } else {
+        # Multiple unique races (not including White + 1), or 3+ unique races
+        "Multiracial"
+      }
+    })
+  )  |> 
+  select(pID,n_races,race_collapsed)
+
+# score education level 
+edu_scored = data_demo |> 
+  filter(item == "ses_degree") |>  # this is their OWN edu level
+  mutate(education_level = case_when(
+    value == "1" ~ "No formal education",
+    value == "2" ~ "Less than high school",
+    value == "3" ~ "High school diploma",
+    value == "4" ~ "High school GED",
+    value == "5" ~ "Some college",
+    value == "6" ~ "Associate degree",
+    value == "7" ~ "Bachelor's degree",
+    value == "8" ~ "Master's degree",
+    value == "9" ~ "Professional degree",
+    value == "10" ~ "Doctorate degree",
+    TRUE ~ value
+  )) |> 
+  select(pID, education_level)
+
+#write to csvs for downstream use for main pro
+basic_demos = sex_scored  |> 
+  left_join(race_multi_scored, by = "pID") |> 
+  left_join(edu_scored, by = "pID") |>
+  left_join(data_demo |> 
+              filter(item == "age") |> 
+              mutate(age = as.numeric(value)) |> 
+              select(pID, age), by = "pID") |> 
+  rename(race_ethnicity = race_collapsed)
+
+
+#write.csv(scored,file.path(data_dir, "/LBA_scored_data.csv"), row.names = FALSE) # scored data
+#write.csv(data_demo,file.path(data_dir, "/LBA_demos_raw.csv"), row.names = FALSE) # raw demo data
+#write.csv(basic_demos,file.path(data_dir, "/LBA_basic_demos_scored.csv"), row.names = FALSE) # basic scored demos (age,race,gender) to be reattached when we analyze the data
+```
+

@@ -1,0 +1,17 @@
+scale name,column name,reverse,min,max,transform,sum,mean,IRQ_Negative_Tendency,IRQ_Negative_Efficacy,IRQ_Positive_Tendency,IRQ_Positive_Efficacy
+IRQ,IRQ_1,,1,7,0,sum,mean,mean,,,
+IRQ,IRQ_2,,1,7,0,sum,mean,mean,,,
+IRQ,IRQ_3,,1,7,0,sum,mean,mean,,,
+IRQ,IRQ_4,,1,7,0,sum,mean,mean,,,
+IRQ,IRQ_5,,1,7,0,sum,mean,,mean,,
+IRQ,IRQ_6,,1,7,0,sum,mean,,mean,,
+IRQ,IRQ_7,,1,7,0,sum,mean,,mean,,
+IRQ,IRQ_8,,1,7,0,sum,mean,,mean,,
+IRQ,IRQ_9,,1,7,0,sum,mean,,,mean,
+IRQ,IRQ_10,,1,7,0,sum,mean,,,mean,
+IRQ,IRQ_11,,1,7,0,sum,mean,,,mean,
+IRQ,IRQ_12,,1,7,0,sum,mean,,,mean,
+IRQ,IRQ_13,,1,7,0,sum,mean,,,,mean
+IRQ,IRQ_14,,1,7,0,sum,mean,,,,mean
+IRQ,IRQ_15,,1,7,0,sum,mean,,,,mean
+IRQ,IRQ_16,,1,7,0,sum,mean,,,,mean

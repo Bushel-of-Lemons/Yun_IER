@@ -1,6 +1,0 @@
-scale name,column name,reverse,min,max,transform,mean
-SWLS,SWLS_1,0,1,7,0,mean
-SWLS,SWLS_2,0,1,7,0,mean
-SWLS,SWLS_3,0,1,7,0,mean
-SWLS,SWLS_4,0,1,7,0,mean
-SWLS,SWLS_5,0,1,7,0,mean
