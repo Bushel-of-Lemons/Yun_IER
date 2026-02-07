@@ -141,36 +141,26 @@ cat("Number of failed screeners:", nrow(unique(failed_screeners["PROLIFIC_PID"])
 
 surveys_tidy = surveys_long %>%
   filter(!is.na(ResponseId)) %>% # remove test responses
-  #filter(nchar(PROLIFIC_PID) > 1) %>% # remove test responses
+  filter(nchar(PROLIFIC_PID) > 1) %>% # remove test responses
   filter(!grepl("_DO_", item)) %>% # item orders (the orders in which they are presented when randomized)
   filter(!DistributionChannel == "Preview") %>% # remove incomplete responses
-  #filter(!PROLIFIC_PID %in% optouts$PROLIFIC_PID) %>% #remove opt-out responses ### Make sure to replace with prolific id once launched
-  #filter(!PROLIFIC_PID %in% failed_screeners$PROLIFIC_PID) %>% #remove failed screener responses 
-  #filter(!PROLIFIC_PID %in% failed_attentions$PROLIFIC_PID) %>% #remove failed attention responses
+  filter(!PROLIFIC_PID %in% optouts$PROLIFIC_PID) %>% #remove opt-out responses ### Make sure to replace with prolific id once launched
+  filter(!PROLIFIC_PID %in% failed_screeners$PROLIFIC_PID) %>% #remove failed screener responses 
+  filter(!PROLIFIC_PID %in% failed_attentions$PROLIFIC_PID) %>% #remove failed attention responses
   filter(!grepl("time", item)) %>% # timers
   filter(!grepl("UserLanguage|Status", item)) %>%
   filter(Progress >80) %>% #retain people who got most of the way through
   select(-DistributionChannel) %>%
 extract(survey_name, c("survey_name"), "GenderIER1-(.*)") |> 
-  filter(StartDate > "2026-01-20") 
-
-#### ADD this back to assign the different labels
-#mutate(study = case_when(
-#  StartDate >= "2025-10-09" & StartDate < "2026-01-06" ~ "pilot",  # Pilot PRE + Followup
- # StartDate >= "2026-01-06" ~ "main",  # Main study starts Jan 6+
-#  TRUE ~ NA_character_
-#))  
-  #mutate(study = ifelse(grepl("2023-07", StartDate), "full", study)) %>% # use this to exclude dates
-  #filter(!(order == "A" & survey_name == "daily experimental 5" & grepl("07-22|07-23", RecordedDate))) # remove incorrectly pushed surveys
+  filter(StartDate > "2026-02-06") 
+  
 
 
 ids = surveys_tidy %>%
-  #select(PROLIFIC_PID) %>% # add back prolific id when running the REAL pipeline
-  select(ResponseId) |> 
+  select(PROLIFIC_PID) %>% # add back prolific id when running the REAL pipeline
   unique() %>%
   mutate(pID = sprintf("IER%03d", row_number())) %>%
-  #left_join(., unique(select(surveys_tidy, PROLIFIC_PID))) # add back prolific id
-  left_join(., unique(select(surveys_tidy, ResponseId))) # add back prolific id
+  left_join(., unique(select(surveys_tidy, PROLIFIC_PID))) 
 
 surveys_enrolled = surveys_tidy %>% # create dataset of ppts who are enrolled in the survey
   left_join(., ids) %>%
@@ -206,6 +196,7 @@ data_text = data_surveys_all %>%
               values_from = value) |>  
   select(pID, survey_name, Condition, starts_with("support_")) %>%
   arrange(pID)
+
 
 #write_csv(Followup_ids, file.path("/Users/sm9518/Downloads/LBA_participant_ids.csv"))
 ```
@@ -336,6 +327,42 @@ print(outliers)
 cat("\nUnique outlier pIDs:\n")
 print(outlier_pIDs)
 ```
+
+## breakdowns by condition 
+
+```{r}
+
+data_surveys_all |> 
+  filter(grepl("Condition|gender", item)) |> 
+  select(pID, survey_name, item, value) |> 
+  pivot_wider(names_from = item, values_from = value)  |> 
+  select(pID, gender, Condition) |> 
+  mutate(gender = case_when(
+    gender == "1" ~ "Male",
+    gender == "2" ~ "Female",
+    gender == "3" ~ "Other",
+    gender == "4" ~ "Prefer not to say",
+    TRUE ~ gender
+  )) -> plot_data
+
+# Calculate total N
+total_n <- n_distinct(plot_data$pID)
+
+# Create plot
+plot_data |> 
+  ggplot(aes(x = Condition, fill = gender)) +
+  geom_bar(position = "dodge") +
+  labs(
+    x = "Condition", 
+    y = "Count", 
+    fill = "Gender",
+    title = sprintf("Total N = %d", total_n)  # Alternative: add to title
+  ) +
+  scale_fill_manual(values = palette_type) +
+  plot_aes +
+  theme(legend.position = "top")
+```
+
 
 ## no outliers
 
